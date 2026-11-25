@@ -1,0 +1,379 @@
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+// ============================================================================
+// Q1: ATM Withdrawal Simulation (Exception Hierarchy, Multi-catch, finally)
+// ============================================================================
+class InsufficientFundsException extends Exception {
+    public InsufficientFundsException(String msg) { super(msg); }
+}
+
+class ATMSimulation {
+    private double balance = 5000.0;
+
+    public void withdraw(String amountInput, boolean cardReaderOk) {
+        try {
+            if (!cardReaderOk) {
+                throw new IOException("Card-reader hardware/file missing");
+            }
+            double amount = Double.parseDouble(amountInput); // Throws NumberFormatException
+            if (amount <= 0) {
+                throw new ArithmeticException("Withdrawal amount must be positive: " + amount);
+            }
+            if (amount > balance) {
+                throw new InsufficientFundsException("Requested Rs " + amount + " exceeds balance Rs " + balance);
+            }
+            balance -= amount;
+            System.out.println("  [SUCCESS] Dispensed Rs " + amount + " | Remaining Balance: Rs " + balance);
+        } catch (NumberFormatException | ArithmeticException e) {
+            // Valid multi-catch: both are sibling subclasses of RuntimeException
+            System.out.println("  [INPUT ERROR] " + e.getClass().getSimpleName() + ": " + e.getMessage());
+        } catch (InsufficientFundsException e) {
+            System.out.println("  [BUSINESS ERROR] " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("  [HARDWARE ERROR] " + e.getMessage());
+        } finally {
+            System.out.println("  [FINALLY] Card ejected & session closed.");
+        }
+    }
+
+    public static void runQ1Demo() {
+        ATMSimulation atm = new ATMSimulation();
+        System.out.println("Test 1 (Valid 1500):");
+        atm.withdraw("1500", true);
+        System.out.println("Test 2 (Non-numeric 'abc'):");
+        atm.withdraw("abc", true);
+        System.out.println("Test 3 (Negative -200):");
+        atm.withdraw("-200", true);
+        System.out.println("Test 4 (Exceeds balance 9000):");
+        atm.withdraw("9000", true);
+        System.out.println("Test 5 (Card reader failure):");
+        atm.withdraw("500", false);
+    }
+}
+
+// ============================================================================
+// Q2: Complete the Code - StorageDemo (User-Defined Exceptions & Chaining)
+// ============================================================================
+class ExamException extends Exception {
+    ExamException(String message) { super(message); }
+    ExamException(String message, Throwable cause) { super(message, cause); }
+}
+
+class SubmissionStorageException extends ExamException {
+    SubmissionStorageException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+
+class Storage {
+    void save(String fileName, long sizeKb) throws SubmissionStorageException {
+        try {
+            if (sizeKb > 500) throw new IOException("Disk quota exceeded");
+            System.out.println("Saved " + fileName);
+        } catch (IOException e) {
+            // TODO 1: Wrap the IOException in a SubmissionStorageException, keeping IOException as its cause
+            throw new SubmissionStorageException("Could not store " + fileName, e);
+        }
+    }
+}
+
+class StorageDemo {
+    public static void runQ2Demo() {
+        Storage storage = new Storage();
+        try {
+            storage.save("answer01.pdf", 120);
+            storage.save("answer02.pdf", 800);
+        } catch (ExamException e) {
+            System.out.println("Error: " + e.getMessage());
+            System.out.println("Cause: " + (e.getCause() != null ? e.getCause().getMessage() : "null"));
+        }
+    }
+}
+
+// ============================================================================
+// Q3: Resource Safety & try-with-resources Simulation
+// ============================================================================
+class SimulatedStoreFile implements AutoCloseable {
+    final String name;
+    final boolean corrupt;
+    boolean closed = false;
+
+    SimulatedStoreFile(String name, boolean corrupt) {
+        this.name = name;
+        this.corrupt = corrupt;
+    }
+
+    int readSales() throws IOException {
+        if (corrupt) throw new IOException("Corrupt data in " + name);
+        return 1000;
+    }
+
+    @Override
+    public void close() {
+        closed = true;
+    }
+}
+
+class SalesReportDemo {
+    public static void runQ3Demo() {
+        List<SimulatedStoreFile> files = Arrays.asList(
+            new SimulatedStoreFile("StoreA.csv", false),
+            new SimulatedStoreFile("StoreB.csv", true),
+            new SimulatedStoreFile("StoreC.csv", false)
+        );
+
+        int total = 0;
+        for (SimulatedStoreFile f : files) {
+            try (SimulatedStoreFile resource = f) {
+                total += resource.readSales();
+            } catch (IOException e) {
+                System.out.println("  [LOG] Failed reading " + f.name + ": " + e.getMessage());
+            }
+        }
+        int leaked = 0;
+        for (SimulatedStoreFile f : files) {
+            if (!f.closed) leaked++;
+        }
+        System.out.println("  Total Sales Computed: Rs " + total + " | Leaked File Handles: " + leaked);
+    }
+}
+
+// ============================================================================
+// Q4: Thread Creation & Thread Life Cycle (Thread & Runnable)
+// ============================================================================
+class ScannerTask implements Runnable {
+    private final String stationName;
+    private final int scripts;
+    private int scanned = 0;
+
+    ScannerTask(String stationName, int scripts) {
+        this.stationName = stationName;
+        this.scripts = scripts;
+    }
+
+    @Override
+    public void run() {
+        try {
+            for (int i = 0; i < scripts; i++) {
+                Thread.sleep(10);
+                scanned++;
+            }
+            System.out.println("  " + stationName + " finished scanning " + scanned + " scripts.");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public int getScanned() { return scanned; }
+}
+
+class ScannerStationDemo {
+    public static void runQ4Demo() throws InterruptedException {
+        ScannerTask[] tasks = new ScannerTask[4];
+        Thread[] workers = new Thread[4];
+
+        for (int i = 0; i < 4; i++) {
+            tasks[i] = new ScannerTask("Station-" + (i + 1), 5);
+            workers[i] = new Thread(tasks[i]);
+            workers[i].start();
+        }
+
+        System.out.println("  Station-1 isAlive right after start(): " + workers[0].isAlive());
+        int total = 0;
+        for (int i = 0; i < 4; i++) {
+            workers[i].join();
+            total += tasks[i].getScanned();
+        }
+        System.out.println("  All stations finished. Total scripts scanned: " + total + " | Station-1 isAlive: " + workers[0].isAlive());
+    }
+}
+
+// ============================================================================
+// Q5: Complete the Code - SeatBooking (Race Condition & Synchronization)
+// ============================================================================
+class SeatBooking {
+    private final boolean[] booked;
+    private int bookingsMade = 0;
+
+    SeatBooking(int seats) {
+        booked = new boolean[seats];
+    }
+
+    // TODO 1: Make the check-then-book operation atomic so that a seat can never be sold twice
+    public synchronized boolean book(int seat) {
+        if (!booked[seat]) {
+            booked[seat] = true;
+            bookingsMade++;
+            return true;
+        }
+        return false;
+    }
+
+    public static void runQ5Demo() throws InterruptedException {
+        SeatBooking screen = new SeatBooking(10);
+        Thread[] users = new Thread[100];
+        for (int i = 0; i < users.length; i++) {
+            final int seat = i % 10;
+            users[i] = new Thread(() -> screen.book(seat));
+            users[i].start();
+        }
+        for (Thread t : users) t.join();
+        System.out.println("Seats sold: " + screen.bookingsMade);
+    }
+}
+
+// ============================================================================
+// Q6: Complete the Code - TokenCounter (Producer-Consumer wait/notifyAll)
+// ============================================================================
+class TokenCounter {
+    private final int[] buffer = new int[5];
+    private int count = 0, in = 0, out = 0;
+
+    public synchronized void put(int token) throws InterruptedException {
+        // TODO 1: Wait while the counter is full, add the token at position in, then wake waiting threads
+        while (count == buffer.length) {
+            wait();
+        }
+        buffer[in] = token;
+        in = (in + 1) % buffer.length;
+        count++;
+        notifyAll();
+    }
+
+    public synchronized int take() throws InterruptedException {
+        // TODO 2: Wait while the counter is empty, remove the token at position out, wake waiting threads and return the token
+        while (count == 0) {
+            wait();
+        }
+        int token = buffer[out];
+        out = (out + 1) % buffer.length;
+        count--;
+        notifyAll();
+        return token;
+    }
+
+    public static void runQ6Demo() throws InterruptedException {
+        TokenCounter counter = new TokenCounter();
+        int[] collected = new int[2];
+
+        Thread cook = new Thread(() -> {
+            try {
+                for (int t = 1; t <= 20; t++) counter.put(t);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+
+        Thread[] students = new Thread[2];
+        for (int s = 0; s < 2; s++) {
+            final int id = s;
+            students[s] = new Thread(() -> {
+                try {
+                    for (int k = 0; k < 10; k++) collected[id] += counter.take();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+
+        cook.start();
+        for (Thread t : students) t.start();
+        cook.join();
+        for (Thread t : students) t.join();
+
+        System.out.println("Sum of tokens collected: " + (collected[0] + collected[1]) + " (expected 210)");
+    }
+}
+
+// ============================================================================
+// Q7: Concurrent, Fault-Tolerant Semester Result Processor (ExecutorService)
+// ============================================================================
+class ResultProcessorDemo {
+    public static void runQ7Demo() throws InterruptedException {
+        int totalFiles = 200;
+        int[] poolSizes = {1, 2, 4, 8};
+
+        for (int poolSize : poolSizes) {
+            ExecutorService executor = Executors.newFixedThreadPool(poolSize);
+            ConcurrentHashMap<String, Integer> validResults = new ConcurrentHashMap<>();
+            AtomicInteger failureCount = new AtomicInteger(0);
+            List<Callable<Boolean>> tasks = new ArrayList<>();
+
+            for (int i = 1; i <= totalFiles; i++) {
+                final int fileId = i;
+                Callable<Boolean> task = new Callable<Boolean>() {
+                    @Override
+                    public Boolean call() throws Exception {
+                        Thread.sleep(1);
+                        if (fileId % 20 == 0) {
+                            failureCount.incrementAndGet();
+                            throw new IOException("Corrupt/Missing file: Student_" + fileId);
+                        }
+                        validResults.put("Student_" + fileId, 75 + (fileId % 25));
+                        return true;
+                    }
+                };
+                tasks.add(task);
+            }
+
+            long start = System.nanoTime();
+            List<Future<Boolean>> futures = executor.invokeAll(tasks);
+            for (Future<Boolean> f : futures) {
+                try {
+                    f.get();
+                } catch (ExecutionException ignored) {
+                }
+            }
+            executor.shutdown();
+            long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+
+            System.out.printf("Pool Size = %d -> Time: %3d ms | Successes: %d | Failures Isolated: %d%n",
+                    poolSize, elapsedMs, validResults.size(), failureCount.get());
+        }
+    }
+}
+
+// ============================================================================
+// MAIN ENTRY POINT
+// ============================================================================
+public class Main {
+    public static void main(String[] args) throws Exception {
+        System.out.println("==================================================");
+        System.out.println("Q1 OUTPUT: ATM Withdrawal Exception Handling");
+        System.out.println("==================================================");
+        ATMSimulation.runQ1Demo();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q2 COMPLETE THE CODE: StorageDemo (Chaining)");
+        System.out.println("==================================================");
+        StorageDemo.runQ2Demo();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q3 OUTPUT: Resource Safety (try-with-resources)");
+        System.out.println("==================================================");
+        SalesReportDemo.runQ3Demo();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q4 OUTPUT: Parallel Scanner Stations (Threads)");
+        System.out.println("==================================================");
+        ScannerStationDemo.runQ4Demo();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q5 COMPLETE THE CODE: SeatBooking (Synchronized)");
+        System.out.println("==================================================");
+        SeatBooking.runQ5Demo();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q6 COMPLETE THE CODE: TokenCounter (Producer-Consumer)");
+        System.out.println("==================================================");
+        TokenCounter.runQ6Demo();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q7 OUTPUT: Fault-Tolerant Result Processor");
+        System.out.println("==================================================");
+        ResultProcessorDemo.runQ7Demo();
+    }
+}

@@ -1,0 +1,450 @@
+import java.time.LocalTime;
+import java.util.*;
+
+// ============================================================================
+// PART 1: TASK 3 - Complete the Code (ParkingFacility)
+// ============================================================================
+class ParkingFacility {
+    private final String[][] slots;
+
+    public ParkingFacility(int[] slotsPerFloor) {
+        slots = new String[slotsPerFloor.length][];
+        for (int f = 0; f < slotsPerFloor.length; f++) {
+            slots[f] = new String[slotsPerFloor[f]];
+        }
+    }
+
+    public int[] allocate(String vehicleNo) {
+        for (int f = 0; f < slots.length; f++) {
+            for (int s = 0; s < slots[f].length; s++) {
+                if (slots[f][s] == null) {
+                    slots[f][s] = vehicleNo;
+                    return new int[]{f, s};
+                }
+            }
+        }
+        return null;
+    }
+
+    public boolean release(int floor, int slot) {
+        if (floor < 0 || floor >= slots.length || slot < 0 || slot >= slots[floor].length) {
+            return false;
+        }
+        if (slots[floor][slot] == null) {
+            return false;
+        }
+        slots[floor][slot] = null;
+        return true;
+    }
+
+    public static void runTask3Demo() {
+        ParkingFacility p = new ParkingFacility(new int[]{2, 1});
+        System.out.println(Arrays.toString(p.allocate("TN01AB1111")));
+        System.out.println(Arrays.toString(p.allocate("TN02CD2222")));
+        System.out.println(Arrays.toString(p.allocate("TN03EF3333")));
+        System.out.println(Arrays.toString(p.allocate("TN04GH4444")));
+        System.out.println(p.release(0, 1) + " " + p.release(0, 1) + " " + p.release(5, 0));
+        System.out.println(Arrays.toString(p.allocate("TN04GH4444")));
+    }
+}
+
+// ============================================================================
+// PART 2: TASK 8 - Complete the Code (FeeDemo Hierarchy)
+// ============================================================================
+interface Chargeable {
+    double chargingFee(int kWh);
+}
+
+abstract class SimpleVehicle {
+    private final String regNo;
+
+    protected SimpleVehicle(String regNo) {
+        this.regNo = regNo;
+    }
+
+    public String getRegNo() {
+        return regNo;
+    }
+
+    protected abstract double ratePerHour();
+
+    public double calculateFee(int minutes) {
+        if (minutes <= 0) return 0.0;
+        int hours = (minutes + 59) / 60;
+        return hours * ratePerHour();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof SimpleVehicle && regNo.equals(((SimpleVehicle) o).regNo);
+    }
+
+    @Override
+    public int hashCode() {
+        return regNo.hashCode();
+    }
+}
+
+class SimpleTwoWheeler extends SimpleVehicle {
+    SimpleTwoWheeler(String regNo) {
+        super(regNo);
+    }
+
+    @Override
+    protected double ratePerHour() {
+        return 10;
+    }
+}
+
+class SimpleCar extends SimpleVehicle {
+    SimpleCar(String regNo) {
+        super(regNo);
+    }
+
+    @Override
+    protected double ratePerHour() {
+        return 30;
+    }
+}
+
+class SimpleElectricCar extends SimpleCar implements Chargeable {
+    SimpleElectricCar(String regNo) {
+        super(regNo);
+    }
+
+    @Override
+    public double chargingFee(int kWh) {
+        return kWh * 12.0;
+    }
+}
+
+class FeeDemo {
+    public static void runTask8Demo() {
+        SimpleVehicle[] parked = {
+            new SimpleTwoWheeler("TN01A1"),
+            new SimpleCar("TN02B2"),
+            new SimpleElectricCar("TN03C3")
+        };
+        for (SimpleVehicle v : parked) {
+            double fee = v.calculateFee(130);
+            if (v instanceof Chargeable) {
+                Chargeable c = (Chargeable) v;
+                fee += c.chargingFee(10);
+            }
+            System.out.println(v.getClass().getSimpleName().replace("Simple", "") + " " + v.getRegNo() + " -> Rs " + fee);
+        }
+        System.out.println(new SimpleCar("TN02B2").equals(new SimpleElectricCar("TN02B2")));
+    }
+}
+
+// ============================================================================
+// PART 3: TASKS 11 & 12 - Complete Campus Smart-Parking System + Day-4 Challenge
+// ============================================================================
+enum PassType {
+    NONE(0.0),
+    ONE_DAY(50.0),
+    MONTHLY(0.0);
+
+    private final double passPurchaseFee;
+
+    PassType(double passPurchaseFee) {
+        this.passPurchaseFee = passPurchaseFee;
+    }
+
+    public double getPassPurchaseFee() {
+        return passPurchaseFee;
+    }
+}
+
+abstract class Vehicle {
+    private final String regNo;
+    private final PassType passType;
+
+    protected Vehicle(String regNo, PassType passType) {
+        if (regNo == null || regNo.trim().isEmpty()) {
+            throw new IllegalArgumentException("Registration number cannot be empty.");
+        }
+        this.regNo = regNo.toUpperCase();
+        this.passType = (passType == null) ? PassType.NONE : passType;
+    }
+
+    public String getRegNo() {
+        return regNo;
+    }
+
+    public PassType getPassType() {
+        return passType;
+    }
+
+    protected abstract double ratePerHour();
+
+    public double calculateFee(int minutes) {
+        return calculateFee(minutes, LocalTime.of(12, 0));
+    }
+
+    public double calculateFee(int minutes, LocalTime entryTime) {
+        if (minutes < 0) {
+            throw new IllegalArgumentException("Duration cannot be negative.");
+        }
+        if (passType == PassType.MONTHLY || passType == PassType.ONE_DAY) {
+            return 0.0;
+        }
+        if (minutes == 0) {
+            return 0.0;
+        }
+        int hours = (minutes + 59) / 60;
+        return hours * ratePerHour();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof Vehicle) {
+            Vehicle v = (Vehicle) o;
+            return this.regNo.equals(v.regNo);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return regNo.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[" + regNo + ", Pass=" + passType + "]";
+    }
+}
+
+class TwoWheeler extends Vehicle {
+    public TwoWheeler(String regNo, PassType passType) {
+        super(regNo, passType);
+    }
+
+    @Override
+    protected double ratePerHour() {
+        return 10.0;
+    }
+}
+
+class Car extends Vehicle {
+    public Car(String regNo, PassType passType) {
+        super(regNo, passType);
+    }
+
+    @Override
+    protected double ratePerHour() {
+        return 30.0;
+    }
+}
+
+class ElectricCar extends Car implements Chargeable {
+    public ElectricCar(String regNo, PassType passType) {
+        super(regNo, passType);
+    }
+
+    @Override
+    public double chargingFee(int kWh) {
+        if (kWh < 0) throw new IllegalArgumentException("kWh cannot be negative.");
+        return kWh * 12.0;
+    }
+}
+
+class EBike extends Vehicle implements Chargeable {
+    private static final double FLAT_FEE = 15.0;
+
+    public EBike(String regNo, PassType passType) {
+        super(regNo, passType);
+    }
+
+    @Override
+    protected double ratePerHour() {
+        return FLAT_FEE;
+    }
+
+    @Override
+    public double calculateFee(int minutes, LocalTime entryTime) {
+        if (minutes < 0) throw new IllegalArgumentException("Duration cannot be negative.");
+        if (getPassType() == PassType.MONTHLY || getPassType() == PassType.ONE_DAY) {
+            return 0.0;
+        }
+        return (minutes == 0) ? 0.0 : FLAT_FEE;
+    }
+
+    @Override
+    public double chargingFee(int kWh) {
+        if (kWh < 0) throw new IllegalArgumentException("kWh cannot be negative.");
+        return kWh * 10.0;
+    }
+}
+
+class DeliveryVan extends Car {
+    public DeliveryVan(String regNo, PassType passType) {
+        super(regNo, passType);
+    }
+
+    @Override
+    public double calculateFee(int minutes, LocalTime entryTime) {
+        double baseCarFee = super.calculateFee(minutes, entryTime);
+        boolean isPeak = !entryTime.isBefore(LocalTime.of(9, 0)) && entryTime.isBefore(LocalTime.of(17, 0));
+        return isPeak ? baseCarFee * 2.0 : baseCarFee;
+    }
+}
+
+class ParkingTicket {
+    private static int ticketCounter = 1000;
+
+    private final int ticketId;
+    private final Vehicle vehicle;
+    private final int floor;
+    private final int slot;
+    private final LocalTime entryTime;
+
+    public ParkingTicket(Vehicle vehicle, int floor, int slot, LocalTime entryTime) {
+        this.ticketId = ++ticketCounter;
+        this.vehicle = vehicle;
+        this.floor = floor;
+        this.slot = slot;
+        this.entryTime = entryTime;
+    }
+
+    public int getTicketId() { return ticketId; }
+    public Vehicle getVehicle() { return vehicle; }
+    public int getFloor() { return floor; }
+    public int getSlot() { return slot; }
+    public LocalTime getEntryTime() { return entryTime; }
+
+    @Override
+    public String toString() {
+        return String.format("Ticket#%d | %s | Slot[F%d-S%d] | Entry: %s",
+                ticketId, vehicle, floor, slot, entryTime);
+    }
+}
+
+class ParkingSystem {
+    private final ParkingTicket[][] slots;
+    private final Map<String, ParkingTicket> activeTickets = new HashMap<>();
+    private double totalCollection = 0.0;
+
+    public ParkingSystem(int[] slotsPerFloor) {
+        slots = new ParkingTicket[slotsPerFloor.length][];
+        for (int f = 0; f < slotsPerFloor.length; f++) {
+            slots[f] = new ParkingTicket[slotsPerFloor[f]];
+        }
+    }
+
+    public ParkingTicket parkVehicle(Vehicle vehicle, LocalTime entryTime) {
+        if (activeTickets.containsKey(vehicle.getRegNo())) {
+            throw new IllegalStateException("Duplicate registration: " + vehicle.getRegNo() + " is already parked.");
+        }
+
+        if (vehicle.getPassType() == PassType.ONE_DAY) {
+            totalCollection += PassType.ONE_DAY.getPassPurchaseFee();
+        }
+
+        for (int f = 0; f < slots.length; f++) {
+            for (int s = 0; s < slots[f].length; s++) {
+                if (slots[f][s] == null) {
+                    ParkingTicket ticket = new ParkingTicket(vehicle, f, s, entryTime);
+                    slots[f][s] = ticket;
+                    activeTickets.put(vehicle.getRegNo(), ticket);
+                    return ticket;
+                }
+            }
+        }
+        throw new IllegalStateException("Parking Full! No free slots available for " + vehicle.getRegNo());
+    }
+
+    public double exitVehicle(String regNo, int durationMinutes, int kWhCharged) {
+        ParkingTicket ticket = activeTickets.remove(regNo.toUpperCase());
+        if (ticket == null) {
+            throw new IllegalArgumentException("Invalid exit: Vehicle " + regNo + " not found.");
+        }
+
+        slots[ticket.getFloor()][ticket.getSlot()] = null;
+
+        Vehicle v = ticket.getVehicle();
+        double fee = v.calculateFee(durationMinutes, ticket.getEntryTime());
+
+        if (v instanceof Chargeable && kWhCharged > 0) {
+            Chargeable chargeable = (Chargeable) v;
+            fee += chargeable.chargingFee(kWhCharged);
+        }
+
+        totalCollection += fee;
+        return fee;
+    }
+
+    public double getTotalCollection() {
+        return totalCollection;
+    }
+}
+
+// ============================================================================
+// MAIN ENTRY POINT (Named 'Main' for instant online compiler execution)
+// ============================================================================
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("==================================================");
+        System.out.println("TASK 3 OUTPUT: ParkingFacility (Complete the Code)");
+        System.out.println("==================================================");
+        ParkingFacility.runTask3Demo();
+
+        System.out.println("\n==================================================");
+        System.out.println("TASK 8 OUTPUT: FeeDemo (Complete the Code)");
+        System.out.println("==================================================");
+        FeeDemo.runTask8Demo();
+
+        System.out.println("\n==================================================");
+        System.out.println("TASKS 11 & 12 OUTPUT: Complete System & Day-4 Challenge");
+        System.out.println("==================================================");
+        runFullSystemDemo();
+    }
+
+    private static void runFullSystemDemo() {
+        ParkingSystem campusParking = new ParkingSystem(new int[]{2, 2, 1, 1, 1});
+
+        System.out.println("--- 1. Normal & New Vehicle Category Entries ---");
+        System.out.println(campusParking.parkVehicle(new TwoWheeler("TN01AA1111", PassType.NONE), LocalTime.of(10, 0)));
+        System.out.println(campusParking.parkVehicle(new Car("TN02BB2222", PassType.MONTHLY), LocalTime.of(10, 15)));
+        System.out.println(campusParking.parkVehicle(new ElectricCar("TN03CC3333", PassType.NONE), LocalTime.of(11, 0)));
+        System.out.println(campusParking.parkVehicle(new EBike("TN04DD4444", PassType.NONE), LocalTime.of(11, 30)));
+        System.out.println(campusParking.parkVehicle(new DeliveryVan("TN05EE5555", PassType.NONE), LocalTime.of(14, 0)));
+        System.out.println(campusParking.parkVehicle(new Car("TN06FF6666", PassType.ONE_DAY), LocalTime.of(15, 0)));
+
+        System.out.println("\n--- 2. Boundary Case: Last Free Slot ---");
+        System.out.println("Last slot allocated: " + campusParking.parkVehicle(new TwoWheeler("TN07GG7777", PassType.NONE), LocalTime.of(16, 0)));
+
+        System.out.println("\n--- 3. Invalid Cases ---");
+        try {
+            campusParking.parkVehicle(new Car("TN08HH8888", PassType.NONE), LocalTime.of(16, 5));
+        } catch (Exception e) {
+            System.out.println("Caught expected error: " + e.getMessage());
+        }
+
+        try {
+            campusParking.parkVehicle(new Car("TN01AA1111", PassType.NONE), LocalTime.of(16, 10));
+        } catch (Exception e) {
+            System.out.println("Caught expected error: " + e.getMessage());
+        }
+
+        System.out.println("\n--- 4. Exits & Fee Calculations ---");
+        System.out.println("TN01AA1111 (TwoWheeler, 60m exact)      : Rs " + campusParking.exitVehicle("TN01AA1111", 60, 0));
+        System.out.println("TN02BB2222 (Car Monthly Pass, 180m)    : Rs " + campusParking.exitVehicle("TN02BB2222", 180, 0));
+        System.out.println("TN03CC3333 (ElectricCar, 130m + 10kWh) : Rs " + campusParking.exitVehicle("TN03CC3333", 130, 10));
+        System.out.println("TN04DD4444 (EBike Flat Fee, 240m)      : Rs " + campusParking.exitVehicle("TN04DD4444", 240, 0));
+        System.out.println("TN05EE5555 (DeliveryVan Peak, 90m)     : Rs " + campusParking.exitVehicle("TN05EE5555", 90, 0));
+        System.out.println("TN06FF6666 (Car One-Day Pass, 300m)    : Rs " + campusParking.exitVehicle("TN06FF6666", 300, 0));
+        System.out.println("TN07GG7777 (TwoWheeler, 0m boundary)   : Rs " + campusParking.exitVehicle("TN07GG7777", 0, 0));
+
+        try {
+            campusParking.exitVehicle("TN99ZZ9999", 30, 0);
+        } catch (Exception e) {
+            System.out.println("Caught expected error: " + e.getMessage());
+        }
+
+        System.out.println("\n--- 5. Daily Revenue Reconciliation ---");
+        System.out.println("Hand-calculated Expected Total : Rs 405.0");
+        System.out.println("System Actual Total Collection : Rs " + campusParking.getTotalCollection());
+    }
+}

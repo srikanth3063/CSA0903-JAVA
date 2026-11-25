@@ -1,0 +1,352 @@
+import java.util.*;
+
+// ============================================================================
+// Q3: Complete the Code - Attendance (hashCode-equals Contract)
+// ============================================================================
+class Student {
+    private final String regNo;
+    private final String name;
+
+    Student(String regNo, String name) {
+        this.regNo = regNo;
+        this.name = name;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Student)) return false;
+        return regNo.equals(((Student) o).regNo);
+    }
+
+    // TODO 1: Override hashCode() so that it is consistent with equals()
+    @Override
+    public int hashCode() {
+        return Objects.hash(regNo);
+    }
+
+    @Override
+    public String toString() {
+        return regNo + " " + name;
+    }
+}
+
+class Attendance {
+    public static void runQ3Demo() {
+        Set<Student> present = new HashSet<>();
+        present.add(new Student("192311001", "Arun"));  // scanned at Gate 1
+        present.add(new Student("192311002", "Divya"));
+        present.add(new Student("192311001", "Arun"));  // scanned again at Gate 3
+        System.out.println("Unique students: " + present.size());
+    }
+}
+
+// ============================================================================
+// Q5: Complete the Code - LeaderboardDemo (Generics & Comparator)
+// ============================================================================
+class Team {
+    final String name;
+    final int points;
+    final int goalDiff;
+
+    Team(String name, int points, int goalDiff) {
+        this.name = name;
+        this.points = points;
+        this.goalDiff = goalDiff;
+    }
+
+    @Override
+    public String toString() {
+        return name + "(" + points + "," + goalDiff + ")";
+    }
+}
+
+class Leaderboard<T> {
+    private final List<T> items = new ArrayList<>();
+    private final Comparator<? super T> order;
+
+    Leaderboard(Comparator<? super T> order) {
+        this.order = order;
+    }
+
+    void add(T item) {
+        items.add(item);
+    }
+
+    List<T> ranking() {
+        // TODO 1: Return a new sorted copy of items using order, without modifying items
+        List<T> copy = new ArrayList<>(items);
+        copy.sort(order);
+        return copy;
+    }
+}
+
+class LeaderboardDemo {
+    public static void runQ5Demo() {
+        // TODO 2: Build the comparator: points (high first), then goal difference (high first), then name (A-Z)
+        Comparator<Team> byRank = (a, b) -> {
+            int cmpPoints = Integer.compare(b.points, a.points);
+            if (cmpPoints != 0) return cmpPoints;
+            int cmpGoal = Integer.compare(b.goalDiff, a.goalDiff);
+            if (cmpGoal != 0) return cmpGoal;
+            return a.name.compareTo(b.name);
+        };
+
+        Leaderboard<Team> board = new Leaderboard<>(byRank);
+        board.add(new Team("Panthers", 9, 4));
+        board.add(new Team("Eagles", 9, 6));
+        board.add(new Team("Cobras", 6, 1));
+        board.add(new Team("Bisons", 9, 4));
+        System.out.println(board.ranking());
+    }
+}
+
+// ============================================================================
+// Q6: Complete the Code - Triage (PriorityQueue & Arrival Tie-Breaker)
+// ============================================================================
+class Patient {
+    final String name;
+    final int severity;
+    final long arrival;
+
+    Patient(String name, int severity, long arrival) {
+        this.name = name;
+        this.severity = severity;
+        this.arrival = arrival;
+    }
+
+    @Override
+    public String toString() {
+        return name + "(S" + severity + ")";
+    }
+}
+
+class Triage {
+    private long counter = 0;
+
+    // TODO 1: Create a PriorityQueue that serves the lowest severity number first and,
+    // for equal severity, the earliest arrival first
+    private final PriorityQueue<Patient> queue = new PriorityQueue<>((a, b) -> {
+        int cmpSev = Integer.compare(a.severity, b.severity);
+        if (cmpSev != 0) return cmpSev;
+        return Long.compare(a.arrival, b.arrival);
+    });
+
+    void admit(String name, int severity) {
+        queue.add(new Patient(name, severity, counter++));
+    }
+
+    Patient next() {
+        return queue.poll();
+    }
+
+    public static void runQ6Demo() {
+        Triage er = new Triage();
+        er.admit("Ravi", 3);
+        er.admit("Meena", 1);
+        er.admit("John", 3);
+        er.admit("Asha", 5);
+        er.admit("Kumar", 1);
+        er.admit("Lata", 2);
+
+        StringBuilder order = new StringBuilder();
+        Patient p;
+        while ((p = er.next()) != null) {
+            order.append(p).append(' ');
+        }
+        System.out.println(order.toString().trim());
+    }
+}
+
+// ============================================================================
+// Q1, Q2, Q4 & Q7: Experimental Benchmarks & Day-4 Redesign
+// ============================================================================
+class Assignment2Benchmarks {
+
+    // Q1: String vs StringBuilder vs StringBuffer
+    public static void runQ1Benchmark() {
+        int tickets = 1500;
+        int fields = 35;
+
+        long t1 = System.nanoTime();
+        for (int i = 0; i < tickets; i++) {
+            String ticket = "";
+            for (int f = 0; f < fields; f++) {
+                ticket = ticket + "Field" + f + ":Val" + i + "|";
+            }
+        }
+        long stringTime = (System.nanoTime() - t1) / 1_000_000;
+
+        long t2 = System.nanoTime();
+        for (int i = 0; i < tickets; i++) {
+            StringBuilder sb = new StringBuilder(fields * 15);
+            for (int f = 0; f < fields; f++) {
+                sb.append("Field").append(f).append(":Val").append(i).append("|");
+            }
+            String res = sb.toString();
+        }
+        long builderTime = (System.nanoTime() - t2) / 1_000_000;
+
+        long t3 = System.nanoTime();
+        for (int i = 0; i < tickets; i++) {
+            StringBuffer sbuf = new StringBuffer(fields * 15);
+            for (int f = 0; f < fields; f++) {
+                sbuf.append("Field").append(f).append(":Val").append(i).append("|");
+            }
+            String res = sbuf.toString();
+        }
+        long bufferTime = (System.nanoTime() - t3) / 1_000_000;
+
+        System.out.printf("Workload (%d tickets x %d fields):%n", tickets, fields);
+        System.out.printf("  String (+)      : %d ms (O(n^2) intermediate objects: ~%d)%n", stringTime, tickets * fields);
+        System.out.printf("  StringBuilder   : %d ms (O(n) single buffer per ticket)%n", builderTime);
+        System.out.printf("  StringBuffer    : %d ms (O(n) synchronized overhead)%n", bufferTime);
+    }
+
+    // Q2: ArrayList vs LinkedList vs ArrayDeque
+    public static void runQ2Benchmark() {
+        int n = 15_000;
+        List<Integer> arrayList = new ArrayList<>();
+        List<Integer> linkedList = new LinkedList<>();
+        Deque<Integer> arrayDeque = new ArrayDeque<>();
+
+        long t1 = System.nanoTime();
+        for (int i = 0; i < n; i++) arrayList.add(0, i);
+        long alFront = (System.nanoTime() - t1) / 1_000_000;
+
+        long t2 = System.nanoTime();
+        for (int i = 0; i < n; i++) linkedList.add(0, i);
+        long llFront = (System.nanoTime() - t2) / 1_000_000;
+
+        long t3 = System.nanoTime();
+        for (int i = 0; i < n; i++) arrayDeque.addFirst(i);
+        long adFront = (System.nanoTime() - t3) / 1_000_000;
+
+        long t4 = System.nanoTime();
+        for (int i = 0; i < 5000; i++) arrayList.get(n / 2);
+        long alGet = (System.nanoTime() - t4) / 1_000;
+
+        long t5 = System.nanoTime();
+        for (int i = 0; i < 5000; i++) linkedList.get(n / 2);
+        long llGet = (System.nanoTime() - t5) / 1_000;
+
+        System.out.printf("Insert %d items at front -> ArrayList: %d ms | LinkedList: %d ms | ArrayDeque: %d ms%n",
+                n, alFront, llFront, adFront);
+        System.out.printf("5,000 get(middle) calls  -> ArrayList: %d us | LinkedList: %d us%n",
+                alGet, llGet);
+    }
+
+    // Q4: HashMap vs LinkedHashMap vs TreeMap
+    public static void runQ4Benchmark() {
+        int n = 10_000;
+        Map<String, Integer> hashMap = new HashMap<>();
+        Map<String, Integer> linkedMap = new LinkedHashMap<>();
+        Map<String, Integer> treeMap = new TreeMap<>();
+
+        for (int i = 0; i < n; i++) {
+            String code = String.format("MED-%05d", (i * 37) % n);
+            hashMap.put(code, 100);
+            linkedMap.put(code, 100);
+            treeMap.put(code, 100);
+        }
+
+        int lookups = 100_000;
+        long t1 = System.nanoTime();
+        for (int i = 0; i < lookups; i++) hashMap.get("MED-00500");
+        long hmTime = (System.nanoTime() - t1) / 1_000;
+
+        long t2 = System.nanoTime();
+        for (int i = 0; i < lookups; i++) linkedMap.get("MED-00500");
+        long lhmTime = (System.nanoTime() - t2) / 1_000;
+
+        long t3 = System.nanoTime();
+        for (int i = 0; i < lookups; i++) treeMap.get("MED-00500");
+        long tmTime = (System.nanoTime() - t3) / 1_000;
+
+        System.out.printf("100,000 lookups (N=%d) -> HashMap: %d us | LinkedHashMap: %d us | TreeMap: %d us%n",
+                n, hmTime, lhmTime, tmTime);
+        System.out.println("  LinkedHashMap preserves insertion order; TreeMap preserves sorted code order.");
+    }
+
+    // Q7: Day-4 Redesign (Eliminating Repeated Re-Sorting in Leaderboard)
+    public static void runQ7RedesignValidation() {
+        int teamsCount = 5_000;
+        int queries = 200;
+
+        Comparator<Team> byRank = (a, b) -> {
+            int cmpPoints = Integer.compare(b.points, a.points);
+            if (cmpPoints != 0) return cmpPoints;
+            int cmpGoal = Integer.compare(b.goalDiff, a.goalDiff);
+            if (cmpGoal != 0) return cmpGoal;
+            return a.name.compareTo(b.name);
+        };
+
+        Leaderboard<Team> originalBoard = new Leaderboard<>(byRank);
+        for (int i = 0; i < teamsCount; i++) {
+            originalBoard.add(new Team("Team" + i, i % 50, i % 20));
+        }
+
+        long t1 = System.nanoTime();
+        for (int q = 0; q < queries; q++) {
+            List<Team> r = originalBoard.ranking();
+        }
+        long originalTime = (System.nanoTime() - t1) / 1_000_000;
+
+        TreeSet<Team> sortedCache = new TreeSet<>(byRank);
+        for (int i = 0; i < teamsCount; i++) {
+            sortedCache.add(new Team("Team" + i, i % 50, i % 20));
+        }
+
+        long t2 = System.nanoTime();
+        for (int q = 0; q < queries; q++) {
+            Collection<Team> r = Collections.unmodifiableCollection(sortedCache);
+        }
+        long redesignedTime = (System.nanoTime() - t2) / 1_000_000;
+
+        System.out.printf("200 ranking() reads across %d teams:%n", teamsCount);
+        System.out.printf("  Original (re-sort every read) : %d ms%n", originalTime);
+        System.out.printf("  Redesigned (TreeSet cache)    : %d ms%n", redesignedTime);
+    }
+}
+
+// ============================================================================
+// MAIN ENTRY POINT
+// ============================================================================
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("==================================================");
+        System.out.println("Q1 BENCHMARK: String vs StringBuilder vs StringBuffer");
+        System.out.println("==================================================");
+        Assignment2Benchmarks.runQ1Benchmark();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q2 BENCHMARK: ArrayList vs LinkedList vs ArrayDeque");
+        System.out.println("==================================================");
+        Assignment2Benchmarks.runQ2Benchmark();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q3 COMPLETE THE CODE: Attendance (hashCode-equals)");
+        System.out.println("==================================================");
+        Attendance.runQ3Demo();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q4 BENCHMARK: HashMap vs LinkedHashMap vs TreeMap");
+        System.out.println("==================================================");
+        Assignment2Benchmarks.runQ4Benchmark();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q5 COMPLETE THE CODE: LeaderboardDemo (Comparator)");
+        System.out.println("==================================================");
+        LeaderboardDemo.runQ5Demo();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q6 COMPLETE THE CODE: Triage (PriorityQueue)");
+        System.out.println("==================================================");
+        Triage.runQ6Demo();
+
+        System.out.println("\n==================================================");
+        System.out.println("Q7 DAY-4 CHALLENGE: Original vs Redesigned Ranking");
+        System.out.println("==================================================");
+        Assignment2Benchmarks.runQ7RedesignValidation();
+    }
+}

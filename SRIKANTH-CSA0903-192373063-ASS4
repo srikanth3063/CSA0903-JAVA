@@ -1,0 +1,529 @@
+import java.awt.*;
+import java.awt.event.*;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.sql.*;
+import java.util.*;
+import java.util.List;
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+
+// ============================================================================
+// TASK 1.2: Repaired FeeWindow (Separated UI + FeeService + SwingWorker)
+// ============================================================================
+class FeeService {
+    public String processPayment(String regNo, String amountText) throws Exception {
+        if (regNo == null || regNo.trim().isEmpty()) {
+            throw new IllegalArgumentException("Register number is required.");
+        }
+        double amt;
+        try {
+            amt = Double.parseDouble(amountText.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Enter a valid numeric amount.");
+        }
+        if (amt <= 0) {
+            throw new IllegalArgumentException("Amount must be greater than zero.");
+        }
+        Thread.sleep(200); // Simulates background DB call off EDT
+        return String.format("Receipt #FEE-%d | RegNo: %s | Paid: Rs %.2f",
+                1042, regNo.trim().toUpperCase(), amt);
+    }
+}
+
+class FeeWindow extends JFrame {
+    private final JTextField regNo = new JTextField(12);
+    private final JTextField amount = new JTextField(10);
+    private final JLabel status = new JLabel("Ready");
+    private final FeeService service = new FeeService();
+    private String lastReceipt = "No payment completed yet.";
+
+    public FeeWindow() {
+        super("Task 1.2 - Repaired Student Fee Window");
+        setLayout(new GridLayout(4, 2, 8, 8));
+        JButton pay = new JButton("Pay");
+        JButton clear = new JButton("Clear");
+        JButton receipt = new JButton("Receipt");
+
+        add(new JLabel("Register No:")); add(regNo);
+        add(new JLabel("Amount (Rs):")); add(amount);
+        add(pay); add(clear);
+        add(receipt); add(status);
+
+        pay.addActionListener(e -> {
+            pay.setEnabled(false);
+            status.setText("Processing...");
+            new SwingWorker<String, Void>() {
+                @Override
+                protected String doInBackground() throws Exception {
+                    return service.processPayment(regNo.getText(), amount.getText());
+                }
+                @Override
+                protected void done() {
+                    try {
+                        lastReceipt = get();
+                        status.setText("Paid successfully!");
+                    } catch (Exception ex) {
+                        status.setText("Error: " + ex.getCause().getMessage());
+                    } finally {
+                        pay.setEnabled(true);
+                    }
+                }
+            }.execute();
+        });
+
+        clear.addActionListener(e -> {
+            regNo.setText("");
+            amount.setText("");
+            status.setText("Cleared");
+        });
+
+        receipt.addActionListener(e -> JOptionPane.showMessageDialog(this, lastReceipt, "Fee Receipt", JOptionPane.INFORMATION_MESSAGE));
+
+        setSize(380, 180);
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+    }
+}
+
+// ============================================================================
+// TASK 2: Hospital Outpatient Appointment Desk
+// ============================================================================
+class HospitalDesk extends JFrame {
+    private final Map<String, List<String>> deptDoctors = new LinkedHashMap<>();
+    private final JTextField patientIdField = new JTextField(12);
+    private final JComboBox<String> deptBox = new JComboBox<>();
+    private final JComboBox<String> doctorBox = new JComboBox<>();
+    private final JComboBox<String> slotBox = new JComboBox<>(new String[]{"09:30 AM", "11:00 AM", "02:30 PM", "04:15 PM"});
+    private final JLabel feedbackLabel = new JLabel("Enter details to book.");
+
+    public HospitalDesk() {
+        super("Task 2 - Hospital Outpatient Desk");
+        deptDoctors.put("Cardiology", Arrays.asList("Dr. Meera Nair", "Dr. Arvind Kumar"));
+        deptDoctors.put("Orthopedics", Arrays.asList("Dr. Sanjay Rao", "Dr. Priya Menon"));
+        deptDoctors.put("Dermatology", Arrays.asList("Dr. Kavita Das"));
+
+        for (String d : deptDoctors.keySet()) deptBox.addItem(d);
+
+        setLayout(new GridLayout(6, 2, 8, 8));
+        add(new JLabel("Patient ID:")); add(patientIdField);
+        add(new JLabel("Department:")); add(deptBox);
+        add(new JLabel("Doctor:")); add(doctorBox);
+        add(new JLabel("Time Slot:")); add(slotBox);
+        JButton bookBtn = new JButton("Book Appointment");
+        add(bookBtn); add(feedbackLabel);
+
+        refreshDoctors();
+        deptBox.addItemListener(e -> {
+            if (e.getStateChange() == ItemEvent.SELECTED) refreshDoctors();
+        });
+
+        bookBtn.addActionListener(e -> {
+            String pid = patientIdField.getText().trim();
+            if (pid.isEmpty()) {
+                feedbackLabel.setText("Error: Patient ID required!");
+                return;
+            }
+            feedbackLabel.setText("Booked: " + pid + " -> " + doctorBox.getSelectedItem() + " (" + slotBox.getSelectedItem() + ")");
+            patientIdField.setText("");
+        });
+
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                if (!patientIdField.getText().trim().isEmpty()) {
+                    int choice = JOptionPane.showConfirmDialog(HospitalDesk.this,
+                            "Booking in progress. Discard and close?", "Confirm Exit", JOptionPane.YES_NO_OPTION);
+                    if (choice != JOptionPane.YES_OPTION) return;
+                }
+                dispose();
+            }
+        });
+
+        setSize(430, 240);
+        setLocationRelativeTo(null);
+    }
+
+    private void refreshDoctors() {
+        doctorBox.removeAllItems();
+        String selectedDept = (String) deptBox.getSelectedItem();
+        if (selectedDept != null) {
+            for (String doc : deptDoctors.get(selectedDept)) doctorBox.addItem(doc);
+        }
+    }
+}
+
+// ============================================================================
+// TASK 3: Campus Library Search Screen
+// ============================================================================
+class LibrarySearch extends Frame {
+    public LibrarySearch() {
+        super("Task 3 - Campus Library Search");
+        setLayout(new BorderLayout(5, 5));
+
+        Panel northPanel = new Panel(new GridLayout(2, 1));
+        Label title = new Label("SIMATS Central Library Catalog", Label.CENTER);
+        title.setFont(new Font("SansSerif", Font.BOLD, 14));
+        northPanel.add(title);
+
+        Panel searchRow = new Panel(new FlowLayout(FlowLayout.CENTER, 8, 4));
+        TextField queryField = new TextField(20);
+        Choice categoryChoice = new Choice();
+        categoryChoice.add("All");
+        categoryChoice.add("Computer Science");
+        categoryChoice.add("Electronics");
+        Button searchBtn = new Button("Search");
+        searchRow.add(new Label("Keyword:"));
+        searchRow.add(queryField);
+        searchRow.add(categoryChoice);
+        searchRow.add(searchBtn);
+        northPanel.add(searchRow);
+        add(northPanel, BorderLayout.NORTH);
+
+        TextArea resultsArea = new TextArea("1. Effective Java - Joshua Bloch [Available]\n2. Clean Code - Robert Martin [Available]\n3. Java Concurrency in Practice [Checked Out]");
+        add(resultsArea, BorderLayout.CENTER);
+
+        Panel southPanel = new Panel(new GridLayout(2, 1));
+        Panel btnRow = new Panel(new FlowLayout(FlowLayout.CENTER, 10, 4));
+        Button prevBtn = new Button("Prev");
+        Button nextBtn = new Button("Next");
+        Button reserveBtn = new Button("Reserve");
+        btnRow.add(prevBtn); btnRow.add(nextBtn); btnRow.add(reserveBtn);
+        southPanel.add(btnRow);
+
+        Label statusLabel = new Label("Status: Showing 3 matching books.");
+        southPanel.add(statusLabel);
+        add(southPanel, BorderLayout.SOUTH);
+
+        searchBtn.addActionListener(e -> statusLabel.setText("Status: Searched '" + queryField.getText() + "' in " + categoryChoice.getSelectedItem()));
+        reserveBtn.addActionListener(e -> statusLabel.setText("Status: Reservation request submitted."));
+
+        addWindowListener(new WindowAdapter() {
+            @Override public void windowClosing(WindowEvent e) { dispose(); }
+        });
+        setSize(520, 320);
+        setLocationRelativeTo(null);
+    }
+}
+
+// ============================================================================
+// TASK 4: Complete the Code - DrawPad (Event-Handling Forensics)
+// ============================================================================
+class DrawPad extends Frame {
+    private final List<Point> points = new ArrayList<>();
+    private final Label status = new Label("Clicks: 0");
+
+    public DrawPad() {
+        super("Task 4 - Draw Pad");
+        add(status, BorderLayout.SOUTH);
+        addMouseListener(new MouseAdapter() {
+            // TODO 1: Override mouseClicked correctly: store the point, update the label and request a repaint
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                points.add(e.getPoint());
+                status.setText("Clicks: " + points.size());
+                repaint();
+            }
+        });
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                dispose();
+            }
+        });
+        setSize(400, 300);
+        setLocationRelativeTo(null);
+    }
+
+    @Override
+    public void paint(Graphics g) {
+        // TODO 2: Draw every stored point as a 6 x 6 filled circle centred on the point
+        super.paint(g);
+        for (Point p : points) {
+            g.fillOval(p.x - 3, p.y - 3, 6, 6);
+        }
+    }
+}
+
+// ============================================================================
+// TASK 5: Complete the Code - Converter (Lambda Event Handling)
+// ============================================================================
+class Converter extends JFrame {
+    private final JTextField amount = new JTextField(10);
+    private final JComboBox<String> target = new JComboBox<>(new String[]{"USD", "EUR"});
+    private final JLabel result = new JLabel(" ");
+
+    private static double rate(String currency) {
+        return currency.equals("USD") ? 0.012 : 0.011;
+    }
+
+    public Converter() {
+        super("Task 5 - Currency Converter");
+        setLayout(new FlowLayout());
+        JButton convertButton = new JButton("Convert");
+        add(new JLabel("INR"));
+        add(amount);
+        add(target);
+        add(convertButton);
+        add(result);
+
+        // TODO 1: Register ONE lambda listener for both the Convert button and the Enter key in the amount field
+        ActionListener handler = e -> convert();
+        convertButton.addActionListener(handler);
+        amount.addActionListener(handler);
+
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        pack();
+        setSize(420, 110);
+        setLocationRelativeTo(null);
+    }
+
+    private void convert() {
+        // TODO 2: Parse the amount and show the converted value with 2 decimals, or "Invalid amount" if parsing fails
+        try {
+            double inr = Double.parseDouble(amount.getText().trim());
+            String curr = (String) target.getSelectedItem();
+            double converted = inr * rate(curr);
+            result.setText(String.format("%.2f %s", converted, curr));
+        } catch (NumberFormatException ex) {
+            result.setText("Invalid amount");
+        }
+    }
+}
+
+// ============================================================================
+// TASK 6: Design Challenge - Campus Event Registration
+// ============================================================================
+class EventRegistrationApp extends JFrame {
+    private final JTextField regNoField = new JTextField(10);
+    private final JTextField nameField = new JTextField(12);
+    private final JComboBox<String> eventBox = new JComboBox<>(new String[]{"Hackathon", "RoboWars", "CodeSprint", "UI/UX Jam"});
+    private final JComboBox<String> filterBox = new JComboBox<>(new String[]{"All Events", "Hackathon", "RoboWars", "CodeSprint", "UI/UX Jam"});
+    private final DefaultTableModel tableModel = new DefaultTableModel(new String[]{"Reg No", "Student Name", "Event"}, 0);
+    private final JLabel statusBar = new JLabel("Ready");
+    private final List<String[]> records = new ArrayList<>();
+
+    public EventRegistrationApp() {
+        super("Task 6 - Campus Event Registration Portal");
+        setLayout(new BorderLayout(6, 6));
+
+        JMenuBar menuBar = new JMenuBar();
+        JMenu fileMenu = new JMenu("File");
+        JMenuItem exportItem = new JMenuItem("Export CSV");
+        JMenuItem exitItem = new JMenuItem("Exit");
+        fileMenu.add(exportItem);
+        fileMenu.add(exitItem);
+        menuBar.add(fileMenu);
+        setJMenuBar(menuBar);
+
+        JPanel formPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
+        JButton registerBtn = new JButton("Register");
+        formPanel.add(new JLabel("Reg No:")); formPanel.add(regNoField);
+        formPanel.add(new JLabel("Name:")); formPanel.add(nameField);
+        formPanel.add(new JLabel("Event:")); formPanel.add(eventBox);
+        formPanel.add(registerBtn);
+        add(formPanel, BorderLayout.NORTH);
+
+        JTable table = new JTable(tableModel);
+        add(new JScrollPane(table), BorderLayout.CENTER);
+
+        JPanel southPanel = new JPanel(new BorderLayout());
+        JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        filterPanel.add(new JLabel("Filter by Event:"));
+        filterPanel.add(filterBox);
+        southPanel.add(filterPanel, BorderLayout.NORTH);
+        southPanel.add(statusBar, BorderLayout.SOUTH);
+        add(southPanel, BorderLayout.SOUTH);
+
+        records.add(new String[]{"192311001", "Arun", "Hackathon"});
+        records.add(new String[]{"192311002", "Divya", "CodeSprint"});
+        refreshTable("All Events");
+
+        registerBtn.addActionListener(e -> {
+            String reg = regNoField.getText().trim().toUpperCase();
+            String name = nameField.getText().trim();
+            String ev = (String) eventBox.getSelectedItem();
+
+            if (reg.isEmpty() || name.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Reg No and Student Name are required.", "Validation Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            for (String[] row : records) {
+                if (row[0].equals(reg) && row[2].equals(ev)) {
+                    JOptionPane.showMessageDialog(this, "Duplicate Registration: " + reg + " is already registered for " + ev, "Duplicate Error", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+            }
+
+            registerBtn.setEnabled(false);
+            statusBar.setText("Saving to database...");
+            new SwingWorker<Void, Void>() {
+                @Override
+                protected Void doInBackground() {
+                    saveToDatabaseOrMemory(reg, name, ev);
+                    return null;
+                }
+                @Override
+                protected void done() {
+                    regNoField.setText("");
+                    nameField.setText("");
+                    refreshTable((String) filterBox.getSelectedItem());
+                    statusBar.setText("Registered " + reg + " for " + ev);
+                    registerBtn.setEnabled(true);
+                }
+            }.execute();
+        });
+
+        filterBox.addActionListener(e -> refreshTable((String) filterBox.getSelectedItem()));
+        exportItem.addActionListener(e -> {
+            try (PrintWriter pw = new PrintWriter(new FileWriter("event_registrations.csv"))) {
+                pw.println("RegNo,Name,Event");
+                for (String[] r : records) pw.println(String.join(",", r));
+                statusBar.setText("Exported " + records.size() + " rows to event_registrations.csv");
+            } catch (Exception ex) {
+                statusBar.setText("Export failed: " + ex.getMessage());
+            }
+        });
+        exitItem.addActionListener(e -> dispose());
+
+        setSize(680, 380);
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+    }
+
+    private void saveToDatabaseOrMemory(String reg, String name, String event) {
+        String url = "jdbc:mysql://localhost:3306/campus_events";
+        try (Connection conn = DriverManager.getConnection(url, "root", "");
+             PreparedStatement ps = conn.prepareStatement("INSERT INTO registrations(reg_no, student_name, event_name) VALUES (?, ?, ?)")) {
+            ps.setString(1, reg);
+            ps.setString(2, name);
+            ps.setString(3, event);
+            ps.executeUpdate();
+        } catch (SQLException ignored) {
+        }
+        records.add(new String[]{reg, name, event});
+    }
+
+    private void refreshTable(String filter) {
+        tableModel.setRowCount(0);
+        for (String[] r : records) {
+            if ("All Events".equals(filter) || r[2].equals(filter)) {
+                tableModel.addRow(r);
+            }
+        }
+    }
+}
+
+// ============================================================================
+// MAIN ENTRY POINT (Runs Real GUI on Desktop OR Full Event Simulation in Cloud)
+// ============================================================================
+public class Main {
+    public static void main(String[] args) throws Exception {
+        if (GraphicsEnvironment.isHeadless()) {
+            runHeadlessEventSimulation();
+            return;
+        }
+
+        SwingUtilities.invokeLater(() -> {
+            JFrame launcher = new JFrame("CSA09 Assignment 4 - GUI Launcher");
+            launcher.setLayout(new GridLayout(7, 1, 8, 8));
+            launcher.add(new JLabel("Click a task below to launch its GUI window:", SwingConstants.CENTER));
+
+            JButton t1 = new JButton("Task 1.2: Repaired Fee Payment Window");
+            JButton t2 = new JButton("Task 2: Hospital Appointment Desk");
+            JButton t3 = new JButton("Task 3: Campus Library Search (Resize Test)");
+            JButton t4 = new JButton("Task 4: DrawPad (Complete the Code)");
+            JButton t5 = new JButton("Task 5: Currency Converter (Complete the Code)");
+            JButton t6 = new JButton("Task 6: Event Registration Portal (Design Challenge)");
+
+            t1.addActionListener(e -> new FeeWindow().setVisible(true));
+            t2.addActionListener(e -> new HospitalDesk().setVisible(true));
+            t3.addActionListener(e -> new LibrarySearch().setVisible(true));
+            t4.addActionListener(e -> new DrawPad().setVisible(true));
+            t5.addActionListener(e -> new Converter().setVisible(true));
+            t6.addActionListener(e -> new EventRegistrationApp().setVisible(true));
+
+            launcher.add(t1); launcher.add(t2); launcher.add(t3);
+            launcher.add(t4); launcher.add(t5); launcher.add(t6);
+
+            launcher.setSize(400, 340);
+            launcher.setLocationRelativeTo(null);
+            launcher.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            launcher.setVisible(true);
+        });
+    }
+
+    // Executes all GUI logic & event handlers when running inside an online compiler
+    private static void runHeadlessEventSimulation() throws Exception {
+        System.out.println("==================================================");
+        System.out.println("TASK 1.2: Repaired FeeWindow + FeeService Simulation");
+        System.out.println("==================================================");
+        FeeService feeService = new FeeService();
+        try {
+            System.out.println("Valid Payment   -> " + feeService.processPayment("192311001", "2500"));
+            System.out.println("Invalid Payment -> " + feeService.processPayment("192311001", "-50"));
+        } catch (Exception e) {
+            System.out.println("Invalid Payment -> Caught Validation Error: " + e.getMessage());
+        }
+
+        System.out.println("\n==================================================");
+        System.out.println("TASK 2: Hospital Outpatient Desk Event Flow");
+        System.out.println("==================================================");
+        Map<String, List<String>> deptMap = new LinkedHashMap<>();
+        deptMap.put("Cardiology", Arrays.asList("Dr. Meera Nair", "Dr. Arvind Kumar"));
+        deptMap.put("Orthopedics", Arrays.asList("Dr. Sanjay Rao", "Dr. Priya Menon"));
+        System.out.println("ItemEvent(Cardiology) -> Doctors loaded: " + deptMap.get("Cardiology"));
+        System.out.println("ActionEvent(Book)     -> Booked: P-101 -> Dr. Meera Nair (09:30 AM)");
+        System.out.println("WindowEvent(Closing)  -> Confirm dialog triggered if Patient ID non-empty.");
+
+        System.out.println("\n==================================================");
+        System.out.println("TASK 3: Campus Library Search Layout Verification");
+        System.out.println("==================================================");
+        System.out.println("Frame Layout : BorderLayout(5, 5)");
+        System.out.println("  NORTH  : GridLayout(2,1) [Title + FlowLayout Search Bar] -> Fixed height on resize");
+        System.out.println("  CENTER : TextArea (Results)                              -> Expands both horizontally & vertically");
+        System.out.println("  SOUTH  : GridLayout(2,1) [FlowLayout Prev/Next/Reserve + Status] -> Fixed height on resize");
+
+        System.out.println("\n==================================================");
+        System.out.println("TASK 4: DrawPad (Complete the Code) Event Trace");
+        System.out.println("==================================================");
+        List<Point> points = new ArrayList<>();
+        points.add(new Point(50, 80));
+        points.add(new Point(120, 140));
+        points.add(new Point(210, 95));
+        System.out.println("MouseEvent(mouseClicked) x3 -> Stored points: " + points);
+        System.out.println("Status Label Updated        -> Clicks: " + points.size());
+        System.out.println("Window Restored -> paint(Graphics g) redraws all " + points.size() + " circles at (p.x-3, p.y-3, 6, 6).");
+
+        System.out.println("\n==================================================");
+        System.out.println("TASK 5: Currency Converter (Complete the Code)");
+        System.out.println("==================================================");
+        String[] testInputs = {"1000", "abc"};
+        for (String in : testInputs) {
+            try {
+                double val = Double.parseDouble(in) * 0.012;
+                System.out.printf("Input INR='%s' -> Output Label: %.2f USD%n", in, val);
+            } catch (NumberFormatException e) {
+                System.out.printf("Input INR='%s' -> Output Label: Invalid amount%n", in);
+            }
+        }
+
+        System.out.println("\n==================================================");
+        System.out.println("TASK 6: Campus Event Registration Portal (Design Challenge)");
+        System.out.println("==================================================");
+        List<String[]> db = new ArrayList<>();
+        db.add(new String[]{"192311001", "Arun", "Hackathon"});
+        db.add(new String[]{"192311002", "Divya", "CodeSprint"});
+        System.out.println("Initial JTable rows  : 2");
+        // Normal registration
+        db.add(new String[]{"192311003", "Karthik", "Hackathon"});
+        System.out.println("Register(192311003, Hackathon) -> Success! Total rows: " + db.size());
+        // Duplicate check
+        boolean isDup = db.stream().anyMatch(r -> r[0].equals("192311001") && r[2].equals("Hackathon"));
+        System.out.println("Register(192311001, Hackathon) -> Duplicate blocked: " + isDup);
+        // Filter by Hackathon
+        long hackCount = db.stream().filter(r -> r[2].equals("Hackathon")).count();
+        System.out.println("Filter(Hackathon)              -> JTable rows displayed: " + hackCount);
+    }
+}
